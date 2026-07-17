@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { invalidateAdminData } from "@/lib/admin-cache";
 import { requireApiSession } from "@/lib/auth/session";
 import { getActiveProfile } from "@/lib/data";
 import { sendTelegramNotification } from "@/lib/notifications";
@@ -29,6 +30,7 @@ export async function PATCH(request: Request) {
       relatedEntityId: input.lessonId,
       idempotencyKey: `manual-lesson-unlocked:${input.enrollmentId}:${input.lessonId}`,
     });
+    invalidateAdminData();
     return NextResponse.json({ progress: data });
   } catch (error) {
     return NextResponse.json({ error: error instanceof z.ZodError ? "Некорректные данные" : error instanceof Error ? error.message : "Ошибка" }, { status: 400 });

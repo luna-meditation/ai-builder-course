@@ -2,6 +2,7 @@ import { CalendarDays, CheckCircle2, CircleUserRound, FileCheck2, Flame, FolderK
 import { AppHeader } from "@/components/app-header";
 import { BottomNav } from "@/components/bottom-nav";
 import { NoAccess } from "@/components/no-access";
+import { StudentPreviewBar } from "@/components/student-preview-bar";
 import { requireSession } from "@/lib/auth/session";
 import { getProfileData } from "@/lib/data";
 import { formatDate, initials } from "@/lib/utils";
@@ -26,6 +27,7 @@ export default async function ProfilePage() {
 
   return <>
     <AppHeader firstName={dashboard.profile.first_name} lastName={dashboard.profile.last_name} role={dashboard.profile.role} />
+    {session.previewAsStudent && <StudentPreviewBar />}
     <main className="student-shell pb-32 pt-4 md:pb-16">
       <section className="premium-panel animate-in relative overflow-hidden p-5 sm:p-8">
         <div className="pointer-events-none absolute -right-16 -top-24 size-72 rounded-full bg-[#7667ff]/22 blur-[70px] glow-breathe" />

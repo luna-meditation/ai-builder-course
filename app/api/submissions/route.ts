@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { invalidateAdminData } from "@/lib/admin-cache";
 import { requireApiSession } from "@/lib/auth/session";
 import { getActiveProfile } from "@/lib/data";
 import { sendTelegramNotification } from "@/lib/notifications";
@@ -68,6 +69,7 @@ export async function POST(request: Request) {
         });
       }
     }
+    invalidateAdminData();
     return NextResponse.json({ submission });
   } catch (error) {
     const status = error instanceof z.ZodError ? 400 : error instanceof Error && error.name === "RateLimitError" ? 429 : 500;

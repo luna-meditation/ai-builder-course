@@ -9,6 +9,6 @@ export const dynamic = "force-dynamic";
 export default async function HomePage() {
   if (!isSupabaseConfigured() && !isStandaloneDevPreview()) return <SetupState />;
   const session = await getSession();
-  if (session) redirect(session.role === "admin" ? "/admin" : "/course");
+  if (session) redirect(session.role === "admin" && !session.previewAsStudent ? "/admin" : "/course");
   return <AuthGate devMode={isDevLoginEnabled()} />;
 }

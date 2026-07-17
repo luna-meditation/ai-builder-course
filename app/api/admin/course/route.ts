@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { invalidateAdminData } from "@/lib/admin-cache";
 import { requireApiSession } from "@/lib/auth/session";
 import { getActiveProfile } from "@/lib/data";
 import { getAdminClient } from "@/lib/supabase/admin";
@@ -19,6 +20,7 @@ export async function PATCH(request: Request) {
       title: input.title, description: input.description, cover_url: input.coverUrl || null, ...(input.status ? { status: input.status } : {}),
     }).eq("id", input.id).select("*").single();
     if (error) throw new Error("Не удалось сохранить курс");
+    invalidateAdminData();
     return NextResponse.json({ course: data });
   } catch (error) {
     return NextResponse.json({ error: error instanceof z.ZodError ? "Проверьте поля курса" : error instanceof Error ? error.message : "Ошибка" }, { status: 400 });

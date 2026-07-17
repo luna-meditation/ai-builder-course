@@ -22,6 +22,8 @@ export interface SessionUser {
   role: Role;
   firstName: string;
   username: string | null;
+  /** UI-only student view for a real administrator. Never changes the stored role. */
+  previewAsStudent?: boolean;
 }
 
 export interface Profile {
@@ -59,6 +61,7 @@ export interface Lesson {
   video_url: string | null;
   unlock_rule: UnlockRule;
   assignment_required: boolean;
+  assignment_description: string;
   is_published: boolean;
 }
 

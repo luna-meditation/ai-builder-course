@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowRight, Bot, Check, Flag, Gamepad2, Globe2, Lightbulb, LockKeyhole, Play, Rocket, Sparkles, Trophy } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { BottomNav } from "@/components/bottom-nav";
+import { StudentPreviewBar } from "@/components/student-preview-bar";
 import { ButtonLink } from "@/components/ui/button";
 import { StatusPill } from "@/components/ui/status-pill";
 import type { CourseDashboard as DashboardType, ProgressStatus } from "@/lib/types";
@@ -21,13 +22,14 @@ function lockedReason(previousStatus?: ProgressStatus) {
   return "Заверши предыдущую миссию, чтобы открыть эту";
 }
 
-export function CourseDashboard({ data }: { data: DashboardType }) {
+export function CourseDashboard({ data, preview = false }: { data: DashboardType; preview?: boolean }) {
   const current = data.lessons.find((lesson) => lesson.progress?.status && !["locked", "completed"].includes(lesson.progress.status)) ?? data.lessons.find((lesson) => lesson.progress?.status === "available");
   const remaining = Math.max(0, data.lessons.length - data.completedCount);
   const ringOffset = 100 - data.percent;
 
   return <>
     <AppHeader firstName={data.profile.first_name} lastName={data.profile.last_name} role={data.profile.role} />
+    {preview && <StudentPreviewBar />}
     <main className="student-shell pb-32 pt-4 md:pb-16">
       <section className="premium-panel animate-in relative overflow-hidden p-5 sm:p-8">
         <div className="pointer-events-none absolute -right-16 -top-20 size-64 rounded-full bg-[#7465f6]/20 blur-[60px] glow-breathe" />
@@ -91,9 +93,9 @@ export function CourseDashboard({ data }: { data: DashboardType }) {
               {!locked && <ArrowRight className="mt-5 size-5 shrink-0 text-[var(--muted)] transition-transform duration-300 group-hover:translate-x-1 group-hover:text-white" />}
             </div>;
 
-            return locked
+            return locked && !preview
               ? <div key={lesson.id} className="card p-4 opacity-65 sm:p-5">{content}</div>
-              : <Link key={lesson.id} href={`/course/${data.course.slug}/lesson/${lesson.slug}`} className="card interactive-card group focus-ring block p-4 sm:p-5">{content}</Link>;
+              : <Link key={lesson.id} href={`/course/${data.course.slug}/lesson/${lesson.slug}`} className={cn("card interactive-card group focus-ring block p-4 sm:p-5", locked && "opacity-65")} aria-label={locked && preview ? `${lesson.title}. Заблокировано для ученика, доступно в предпросмотре` : undefined}>{content}</Link>;
           })}
         </div>
       </section>

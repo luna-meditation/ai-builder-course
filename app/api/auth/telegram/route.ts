@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createSession } from "@/lib/auth/session";
+import { isBootstrapAdminTelegramId } from "@/lib/auth/access";
 import { TelegramAuthError, verifyTelegramInitData } from "@/lib/auth/telegram";
 import { getAdminTelegramIds, getServerEnv } from "@/lib/env";
 import { enforceRateLimit } from "@/lib/rate-limit";
@@ -16,7 +17,7 @@ export async function POST(request: NextRequest) {
     const env = getServerEnv();
     const telegramUser = verifyTelegramInitData(initData, env.TELEGRAM_BOT_TOKEN);
     const telegramId = String(telegramUser.id);
-    const isBootstrapAdmin = getAdminTelegramIds().has(telegramId);
+    const isBootstrapAdmin = isBootstrapAdminTelegramId(telegramId, getAdminTelegramIds());
 
     const { data: profile, error } = await getAdminClient()
       .from("profiles")

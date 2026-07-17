@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { invalidateAdminData } from "@/lib/admin-cache";
 import { requireApiSession } from "@/lib/auth/session";
 import { getActiveProfile } from "@/lib/data";
 import { getAdminClient } from "@/lib/supabase/admin";
@@ -25,6 +26,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ lesso
     for (const [key, value] of Object.entries(input)) changes[mapping[key] ?? key] = key === "videoUrl" && value === "" ? null : value;
     const { data, error } = await getAdminClient().from("lessons").update(changes).eq("id", lessonId).select("*").single();
     if (error) throw new Error("Не удалось сохранить урок");
+    invalidateAdminData();
     return NextResponse.json({ lesson: data });
   } catch (error) {
     return NextResponse.json({ error: error instanceof z.ZodError ? "Проверьте поля урока" : error instanceof Error ? error.message : "Ошибка" }, { status: 400 });

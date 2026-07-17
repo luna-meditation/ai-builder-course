@@ -11,5 +11,5 @@ export default async function CoursePage() {
   const session = await requireSession();
   const result = await getCourseDashboard(session);
   if (!result.access) return <NoAccess firstName={result.profile.first_name} supportUsername={result.supportUsername} />;
-  return <CourseDashboard data={result.dashboard} />;
+  return <CourseDashboard data={result.dashboard} preview={Boolean(session.previewAsStudent)} />;
 }

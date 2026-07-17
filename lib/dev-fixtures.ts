@@ -107,5 +107,5 @@ export function devDashboard(profile: Profile = devProfiles.student): CourseDash
 
 export function devSession(role: "student" | "admin" | "no_access"): SessionUser {
   const profile = devProfiles[role];
-  return { profileId: profile.id, telegramUserId: String(profile.telegram_user_id), role: profile.role, firstName: profile.first_name, username: profile.username };
+  return { profileId: profile.id, telegramUserId: String(profile.telegram_user_id), role: profile.role, firstName: profile.first_name, username: profile.username, previewAsStudent: false };
 }

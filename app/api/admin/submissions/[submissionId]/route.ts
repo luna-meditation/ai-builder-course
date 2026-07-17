@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { invalidateAdminData } from "@/lib/admin-cache";
 import { requireApiSession } from "@/lib/auth/session";
 import { getActiveProfile } from "@/lib/data";
 import { sendTelegramNotification } from "@/lib/notifications";
@@ -34,6 +35,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ submi
         relatedEntityId: nextLessonId,
         idempotencyKey: `manual-lesson-unlocked:${existing.enrollment_id}:${nextLessonId}`,
       });
+      invalidateAdminData();
       return NextResponse.json({ nextLessonId });
     }
 
@@ -78,6 +80,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ submi
         });
       }
     }
+    invalidateAdminData();
     return NextResponse.json({ submission });
   } catch (error) {
     const message = error instanceof z.ZodError ? error.issues[0]?.message ?? "Некорректные данные" : error instanceof Error ? error.message : "Ошибка";

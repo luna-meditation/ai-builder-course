@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowLeft, ArrowRight, CheckCircle2, Clock3, Gauge, Gift, Layers3, Route, Sparkles, Target } from "lucide-react";
 import { AssignmentForm } from "@/components/assignment-form";
 import { LessonBlocks, VideoPlayer } from "@/components/lesson-blocks";
+import { StudentPreviewBar } from "@/components/student-preview-bar";
 import { ButtonLink } from "@/components/ui/button";
 import { StatusPill } from "@/components/ui/status-pill";
 import { requireSession } from "@/lib/auth/session";
@@ -27,6 +28,7 @@ export default async function LessonPage({ params }: { params: Promise<{ courseS
   const meta = lessonMeta[currentIndex] ?? lessonMeta[0]!;
 
   return <main className="student-shell safe-top pb-16">
+    {session.previewAsStudent && <StudentPreviewBar />}
     <header className="animate-in flex items-center justify-between py-4"><Link href="/course" className="focus-ring inline-flex min-h-10 items-center gap-2 rounded-xl px-2.5 text-sm text-[var(--muted)] transition hover:bg-white/[.05] hover:text-[var(--text)] active:scale-[.98]"><ArrowLeft className="size-4" /> К курсу</Link><StatusPill status={data.progress.status} /></header>
 
     <section className="premium-panel animate-in relative mt-3 overflow-hidden p-5 sm:p-8">
@@ -57,7 +59,7 @@ export default async function LessonPage({ params }: { params: Promise<{ courseS
     <div className="mt-5"><ButtonLink href="#lesson-work" className="group w-full min-h-14 text-base">Продолжить создание <ArrowRight className="size-5 transition-transform duration-300 group-hover:translate-x-1" /></ButtonLink></div>
 
     <section id="lesson-work" className="mt-12 scroll-mt-6"><div className="mb-6"><p className="eyebrow">Практический маршрут</p><h2 className="mt-2 text-2xl font-bold tracking-[-.035em] sm:text-3xl">Собираем результат</h2></div><LessonBlocks lessonId={data.lesson.id} blocks={data.blocks} /></section>
-    {data.lesson.assignment_required && <section className="mt-12"><AssignmentForm lessonId={data.lesson.id} enrollmentId={data.enrollment.id} description={data.lesson.assignment_description} submissions={data.submissions} /></section>}
+    {data.lesson.assignment_required && <section className="mt-12"><AssignmentForm lessonId={data.lesson.id} enrollmentId={data.enrollment.id} description={data.lesson.assignment_description} submissions={data.submissions} preview={Boolean(session.previewAsStudent)} /></section>}
 
     <nav className="mt-10 grid gap-2 sm:grid-cols-2">{previous ? <Link href={`/course/${courseSlug}/lesson/${previous.slug}`} className="card interactive-card focus-ring flex items-center gap-3 p-4 text-sm font-semibold"><ArrowLeft className="size-4 text-[var(--muted)]" /><span><span className="block text-[9px] font-normal uppercase tracking-[.13em] text-[var(--muted)]">Предыдущая миссия</span>{previous.title}</span></Link> : <span />}{next ? <Link href="/course" className="card interactive-card focus-ring flex items-center justify-between gap-3 p-4 text-right text-sm font-semibold"><span className="ml-auto"><span className="block text-[9px] font-normal uppercase tracking-[.13em] text-[var(--muted)]">Следующая миссия</span>{next.title}</span><ArrowRight className="size-4 text-[var(--muted)]" /></Link> : <Link href="/course" className="card interactive-card focus-ring flex items-center justify-end gap-3 p-4 text-sm font-semibold">Вернуться к маршруту <ArrowRight className="size-4" /></Link>}</nav>
   </main>;

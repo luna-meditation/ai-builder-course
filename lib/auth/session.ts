@@ -3,7 +3,9 @@ import "server-only";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { jwtVerify, SignJWT } from "jose";
+import { cache } from "react";
 import { z } from "zod";
+import { canAccessAdminSurface, canMutateWhilePreviewing } from "@/lib/auth/access";
 import { getServerEnv, isDevLoginEnabled } from "@/lib/env";
 import type { Role, SessionUser } from "@/lib/types";
 
@@ -14,6 +16,7 @@ const sessionSchema = z.object({
   role: z.enum(["student", "admin", "mentor"]),
   firstName: z.string().min(1),
   username: z.string().nullable(),
+  previewAsStudent: z.boolean().optional().default(false),
 });
 
 function getSecret() {
@@ -60,7 +63,7 @@ export async function clearSession() {
   });
 }
 
-export async function getSession(): Promise<SessionUser | null> {
+const readSession = cache(async (): Promise<SessionUser | null> => {
   const token = (await cookies()).get(COOKIE_NAME)?.value;
   if (!token) return null;
 
@@ -73,18 +76,25 @@ export async function getSession(): Promise<SessionUser | null> {
   } catch {
     return null;
   }
+});
+
+export async function getSession() {
+  return readSession();
 }
 
 export async function requireSession(role?: Role) {
   const session = await getSession();
   if (!session) redirect("/");
-  if (role && session.role !== role) redirect("/course");
+  if (role === "admin" && !canAccessAdminSurface(session)) redirect("/course");
+  if (role && role !== "admin" && session.role !== role) redirect("/course");
   return session;
 }
 
 export async function requireApiSession(role?: Role) {
   const session = await getSession();
   if (!session) return { error: "Необходима авторизация", status: 401 as const };
-  if (role && session.role !== role) return { error: "Недостаточно прав", status: 403 as const };
+  if (!canMutateWhilePreviewing(session)) return { error: "В режиме предпросмотра изменения отключены", status: 403 as const };
+  if (role === "admin" && !canAccessAdminSurface(session)) return { error: "Недостаточно прав", status: 403 as const };
+  if (role && role !== "admin" && session.role !== role) return { error: "Недостаточно прав", status: 403 as const };
   return { session };
 }
