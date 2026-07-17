@@ -26,6 +26,7 @@ function getSecret() {
 }
 
 export async function createSession(user: SessionUser) {
+  const isProduction = process.env.NODE_ENV === "production";
   const token = await new SignJWT({ ...user })
     .setProtectedHeader({ alg: "HS256", typ: "JWT" })
     .setIssuedAt()
@@ -37,8 +38,9 @@ export async function createSession(user: SessionUser) {
   const store = await cookies();
   store.set(COOKIE_NAME, token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
+    secure: isProduction,
+    sameSite: isProduction ? "none" : "lax",
+    partitioned: isProduction,
     maxAge: 60 * 60 * 24 * 7,
     path: "/",
   });
@@ -46,7 +48,16 @@ export async function createSession(user: SessionUser) {
 
 export async function clearSession() {
   const store = await cookies();
-  store.delete(COOKIE_NAME);
+  const isProduction = process.env.NODE_ENV === "production";
+  store.set(COOKIE_NAME, "", {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: isProduction ? "none" : "lax",
+    partitioned: isProduction,
+    expires: new Date(0),
+    maxAge: 0,
+    path: "/",
+  });
 }
 
 export async function getSession(): Promise<SessionUser | null> {

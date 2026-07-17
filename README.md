@@ -282,7 +282,7 @@ npx netlify env:set NEXT_PUBLIC_DEV_MODE "false" --context production
    ```
 
 7. Откройте личный чат с ботом и по очереди проверьте `/start`, `/course`, `/support`; обе кнопки курса должны открыть Mini App.
-8. Проверьте появление/обновление профиля в `profiles`, поле `last_seen_at` и роль. Cookie `ai_builder_session` должна иметь флаги HttpOnly, Secure и SameSite=Lax; её значение недоступно JavaScript.
+8. Проверьте появление/обновление профиля в `profiles`, поле `last_seen_at` и роль. В production cookie `ai_builder_session` должна иметь флаги HttpOnly, Secure, SameSite=None и Partitioned для работы внутри Telegram Web iframe; её значение недоступно JavaScript.
 9. Попытка открыть Mini App URL в обычном production-браузере должна показать вход через Telegram без dev-кнопок.
 10. Проверьте вход без enrollment, выдайте доступ из админки, отправьте и проверьте задание, затем завершите курс. Уведомления должны прийти из того же бота; результаты и ошибки фиксируются в `notifications_log`.
 11. При проблемах проверьте Function logs в Netlify и `npm run telegram:webhook:info`; токен и secret не копируйте в логи или сообщения.
