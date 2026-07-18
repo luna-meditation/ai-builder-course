@@ -14,7 +14,11 @@ export async function POST(request: Request) {
   try {
     await getActiveProfile(session, "admin");
     const { enabled } = schema.parse(await request.json());
-    await createSession({ ...session, previewAsStudent: enabled });
+    await createSession({
+      ...session,
+      previewAsStudent: enabled,
+      studentMode: enabled ? "preview" : null,
+    });
     return NextResponse.json({ ok: true, previewAsStudent: enabled });
   } catch (error) {
     return NextResponse.json(

@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { unstable_cache } from "next/cache";
 import { cache } from "react";
 import { hasCourseAccess, resolveAccessStatus } from "@/lib/auth/bootstrap";
+import { isReadOnlyStudentPreview } from "@/lib/auth/access";
 import { canOpenLesson } from "@/lib/course-rules";
 import { ADMIN_DATA_TAG, STUDENT_CATALOG_TAG } from "@/lib/admin-cache";
 import { devBlocks, devCourse, devDashboard, devEnrollment, devLessons, devProfileForSession, devProfiles, devProgress, devSubmissions } from "@/lib/dev-fixtures";
@@ -213,7 +214,7 @@ async function getAdminStudentPreview(session: SessionUser) {
 export async function getCourseDashboard(session: SessionUser): Promise<
   { access: true; dashboard: CourseDashboard } | { access: false; profile: Profile; supportUsername: string; accessStatus: AccessStatus }
 > {
-  if (session.role === "admin" && session.previewAsStudent) {
+  if (isReadOnlyStudentPreview(session)) {
     return { access: true, dashboard: await getAdminStudentPreview(session) };
   }
   if (isStandaloneDevPreview()) {
@@ -262,7 +263,7 @@ async function addSignedUrls(files: SubmissionFile[]) {
 }
 
 export async function getLessonData(session: SessionUser, courseSlug: string, lessonSlug: string) {
-  if (session.role === "admin" && session.previewAsStudent) {
+  if (isReadOnlyStudentPreview(session)) {
     const dashboard = await getAdminStudentPreview(session);
     if (dashboard.course.slug !== courseSlug) notFound();
     const lesson = dashboard.lessons.find((item) => item.slug === lessonSlug);
@@ -382,8 +383,8 @@ export async function getCompletionData(session: SessionUser) {
 
 const loadAdminDashboard = unstable_cache(async () => {
   const supabase = getAdminClient();
-  const [students, active, completed, review, revision, progress, audit] = await Promise.all([
-    supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "student"),
+  const [learnerProfiles, active, completed, review, revision, progress, audit] = await Promise.all([
+    supabase.from("profiles").select("id,role,enrollments(id)"),
     supabase.from("enrollments").select("id", { count: "exact", head: true }).eq("status", "active"),
     supabase.from("enrollments").select("id", { count: "exact", head: true }).eq("status", "completed"),
     supabase.from("submissions").select("id", { count: "exact", head: true }).in("status", ["submitted", "in_review"]),
@@ -391,12 +392,14 @@ const loadAdminDashboard = unstable_cache(async () => {
     supabase.from("lesson_progress").select("status"),
     supabase.from("audit_log").select("*, profiles(first_name, username)").order("created_at", { ascending: false }).limit(8),
   ]);
+  const profiles = (learnerProfiles.data ?? []) as Array<{ role: Profile["role"]; enrollments: Array<{ id: string }> }>;
+  const students = profiles.filter((profile) => profile.role === "student" || profile.enrollments.length > 0).length;
   const statuses = (progress.data ?? []) as Array<{ status: string }>;
   const averageProgress = statuses.length
     ? Math.round((statuses.filter((item) => item.status === "completed").length / statuses.length) * 100)
     : 0;
   return {
-    students: students.count ?? 0,
+    students,
     active: active.count ?? 0,
     completed: completed.count ?? 0,
     review: review.count ?? 0,
@@ -419,22 +422,27 @@ export async function getAdminDashboard(session: SessionUser) {
 
 const loadAdminStudents = unstable_cache(async () => {
   const supabase = getAdminClient();
-  const [profilesResult, coursesResult] = await Promise.all([
-    supabase.from("profiles").select("*, enrollments(*, lesson_progress(*))").eq("role", "student").order("last_seen_at", { ascending: false }),
+  const [profilesResult, coursesResult, lessonsResult] = await Promise.all([
+    supabase.from("profiles").select("*, enrollments(*, lesson_progress(*))").order("last_seen_at", { ascending: false }),
     supabase.from("courses").select("id,title").eq("status", "published"),
+    supabase.from("lessons").select("id,course_id").eq("is_published", true),
   ]);
   type ProfileWithLearning = Profile & { enrollments: Array<Enrollment & { lesson_progress: LessonProgress[] }> };
-  const profiles = (profilesResult.data ?? []) as ProfileWithLearning[];
+  const profiles = ((profilesResult.data ?? []) as ProfileWithLearning[])
+    .filter((profile) => profile.role === "student" || profile.enrollments.length > 0);
+  const lessonCountByCourse = new Map<string, number>();
+  for (const lesson of lessonsResult.data ?? []) lessonCountByCourse.set(lesson.course_id, (lessonCountByCourse.get(lesson.course_id) ?? 0) + 1);
   const rows = profiles.map(({ enrollments, ...profile }) => {
     const enrollmentWithProgress = [...enrollments].sort((a, b) => b.access_granted_at.localeCompare(a.access_granted_at))[0] ?? null;
     const enrollment = enrollmentWithProgress as Enrollment | null;
     const statuses = enrollmentWithProgress?.lesson_progress ?? [];
     const completed = statuses.filter((item) => item.status === "completed").length;
     const unlocked = statuses.filter((item) => item.status !== "locked").length;
+    const totalLessons = enrollment ? lessonCountByCourse.get(enrollment.course_id) ?? 0 : 0;
     return {
       profile,
       enrollment,
-      progressPercent: statuses.length ? Math.round((completed / statuses.length) * 100) : 0,
+      progressPercent: totalLessons ? Math.round((completed / totalLessons) * 100) : 0,
       currentLesson: Math.max(1, unlocked),
     };
   });

@@ -1,12 +1,11 @@
-import { Sparkles } from "lucide-react";
+import Image from "next/image";
 import { cn } from "@/lib/utils";
 
 export function Logo({ compact = false, className }: { compact?: boolean; className?: string }) {
   return <div className={cn("flex items-center gap-3", className)}>
-    <span className="relative grid size-10 shrink-0 place-items-center overflow-hidden rounded-[14px] bg-[var(--accent)] text-white shadow-[0_10px_28px_rgba(109,93,252,.32)]">
-      <span className="absolute inset-0 bg-[radial-gradient(circle_at_70%_0%,rgba(255,255,255,.5),transparent_50%)]" />
-      <Sparkles className="relative size-5" strokeWidth={2.2} />
+    <span className="relative grid size-11 shrink-0 place-items-center overflow-hidden rounded-full shadow-[0_10px_30px_rgba(88,92,255,.3)]">
+      <Image src="/brand/ai-builder-symbol.png" alt="" width={256} height={256} className="size-full object-cover" priority />
     </span>
-    {!compact && <span className="leading-none"><span className="block text-sm font-extrabold tracking-[.13em]">AI BUILDER</span><span className="mt-1 block text-[10px] font-medium tracking-wide text-[var(--muted)]">BUILD WHAT MATTERS</span></span>}
+    {!compact && <span className="leading-none"><span className="block text-sm font-extrabold tracking-[.13em]">AI BUILDER</span><span className="mt-1 block text-[10px] font-medium tracking-[.18em] text-[#7d89ff]">COURSE</span></span>}
   </div>;
 }

@@ -53,7 +53,8 @@ describe("student experience performance contracts", () => {
   it("prevents duplicate assignment actions and avoids a full refresh after submit", () => {
     const form = read("components/assignment-form.tsx");
     expect(form).toContain("loading={submitting}");
-    expect(form).toContain("disabled={uploading || preview || saving || submitting}");
+    expect(form).toContain("disabled={uploading || failedUploads || preview || saving || submitting}");
+    expect(form).toContain("disabled={preview || submitting || uploading || confirming}");
     expect(form).not.toContain("window.confirm");
     expect(form).not.toContain("router.refresh");
   });

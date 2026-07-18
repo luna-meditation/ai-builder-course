@@ -3,9 +3,33 @@ import Script from "next/script";
 import { Toaster } from "sonner";
 import "./globals.css";
 
+const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://ai-builder-course.netlify.app";
+
 export const metadata: Metadata = {
+  metadataBase: new URL(appUrl),
   title: { default: "AI BUILDER", template: "%s · AI BUILDER" },
   description: "Практический курс по созданию цифровых продуктов с ИИ",
+  applicationName: "AI Builder Course",
+  icons: {
+    icon: [{ url: "/icon.png", sizes: "512x512", type: "image/png" }],
+    apple: [{ url: "/apple-icon.png", sizes: "180x180", type: "image/png" }],
+  },
+  manifest: "/manifest.webmanifest",
+  openGraph: {
+    type: "website",
+    locale: "ru_RU",
+    url: appUrl,
+    siteName: "AI Builder Course",
+    title: "AI Builder Course",
+    description: "Создай свой первый IT-продукт с помощью ИИ.",
+    images: [{ url: "/brand/ai-builder-logo.png", width: 1024, height: 1024, alt: "AI Builder Course" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "AI Builder Course",
+    description: "Создай свой первый IT-продукт с помощью ИИ.",
+    images: ["/brand/ai-builder-logo.png"],
+  },
   robots: { index: false, follow: false },
 };
 

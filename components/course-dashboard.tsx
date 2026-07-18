@@ -6,7 +6,7 @@ import { StudentPreviewBar } from "@/components/student-preview-bar";
 import { StudentRoutePrefetch } from "@/components/student-route-prefetch";
 import { ButtonLink } from "@/components/ui/button";
 import { StatusPill } from "@/components/ui/status-pill";
-import type { CourseDashboard as DashboardType, ProgressStatus } from "@/lib/types";
+import type { CourseDashboard as DashboardType, ProgressStatus, StudentMode } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const missionMeta = [
@@ -23,16 +23,17 @@ function lockedReason(previousStatus?: ProgressStatus) {
   return "Заверши предыдущую миссию, чтобы открыть эту";
 }
 
-export function CourseDashboard({ data, preview = false }: { data: DashboardType; preview?: boolean }) {
+export function CourseDashboard({ data, mode = null }: { data: DashboardType; mode?: StudentMode | null }) {
+  const preview = mode === "preview";
   const current = data.lessons.find((lesson) => lesson.progress?.status && !["locked", "completed"].includes(lesson.progress.status)) ?? data.lessons.find((lesson) => lesson.progress?.status === "available");
   const remaining = Math.max(0, data.lessons.length - data.completedCount);
   const ringOffset = 100 - data.percent;
 
   return <>
     <StudentRoutePrefetch lessonHrefs={current ? [`/course/${data.course.slug}/lesson/${current.slug}`] : []} />
-    <AppHeader firstName={data.profile.first_name} lastName={data.profile.last_name} role={data.profile.role} />
-    {preview && <StudentPreviewBar />}
-    <main className="student-shell pb-32 pt-4 md:pb-16">
+    <AppHeader firstName={data.profile.first_name} lastName={data.profile.last_name} role={data.profile.role} studentMode={mode} />
+    {mode && <StudentPreviewBar mode={mode} />}
+    <main className="student-shell student-bottom-space pt-4">
       <section className="premium-panel animate-in relative overflow-hidden p-5 sm:p-8">
         <div className="pointer-events-none absolute -right-16 -top-20 size-64 rounded-full bg-[#7465f6]/20 blur-[60px] glow-breathe" />
         <div className="pointer-events-none absolute bottom-0 left-[35%] h-24 w-72 rounded-full bg-[#318bea]/10 blur-[55px]" />

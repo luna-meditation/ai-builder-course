@@ -55,6 +55,6 @@ describe("automatic Telegram registration", () => {
   it("returns the new-profile state in the secure session and invalidates the admin list", () => {
     expect(authRoute).toContain("isNewUser: profile.is_new");
     expect(authRoute).toContain("if (profile.is_new) invalidateAdminData()");
-    expect(readFileSync("lib/data.ts", "utf8")).toContain('.eq("role", "student")');
+    expect(readFileSync("lib/data.ts", "utf8")).toContain('profile.role === "student" || profile.enrollments.length > 0');
   });
 });

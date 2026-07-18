@@ -5,6 +5,7 @@ import { NoAccess } from "@/components/no-access";
 import { StudentPreviewBar } from "@/components/student-preview-bar";
 import { StudentRoutePrefetch } from "@/components/student-route-prefetch";
 import { requireSession } from "@/lib/auth/session";
+import { getStudentMode } from "@/lib/auth/access";
 import { getProfileData } from "@/lib/data";
 import { formatDate, initials } from "@/lib/utils";
 
@@ -25,12 +26,13 @@ export default async function ProfilePage() {
   const projectsCreated = Math.min(3, dashboard.completedCount);
   const streakDays = dashboard.completedCount > 0 ? Math.min(7, dashboard.completedCount) : 0;
   const level = currentLevel(dashboard.percent);
+  const studentMode = getStudentMode(session);
 
   return <>
     <StudentRoutePrefetch />
-    <AppHeader firstName={dashboard.profile.first_name} lastName={dashboard.profile.last_name} role={dashboard.profile.role} />
-    {session.previewAsStudent && <StudentPreviewBar />}
-    <main className="student-shell pb-32 pt-4 md:pb-16">
+    <AppHeader firstName={dashboard.profile.first_name} lastName={dashboard.profile.last_name} role={dashboard.profile.role} studentMode={studentMode} />
+    {studentMode && <StudentPreviewBar mode={studentMode} />}
+    <main className="student-shell student-bottom-space pt-4">
       <section className="premium-panel animate-in relative overflow-hidden p-5 sm:p-8">
         <div className="pointer-events-none absolute -right-16 -top-24 size-72 rounded-full bg-[#7667ff]/22 blur-[70px] glow-breathe" />
         <div className="pointer-events-none absolute bottom-[-80px] left-[25%] size-52 rounded-full bg-[#2d85ef]/12 blur-[60px]" />

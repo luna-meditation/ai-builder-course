@@ -50,7 +50,10 @@ const assignmentDescriptions = [
 
 export const devLessons = lessonSeed.map((seed, index) => ({
   id: seed[0], course_id: devCourse.id, title: seed[1], slug: seed[2], short_description: seed[3], lesson_order: index + 1,
-  expected_result: seed[4], video_type: null, video_url: null, unlock_rule: seed[5], assignment_required: true,
+  expected_result: seed[4], duration_minutes: [25, 35, 45, 50, 30][index]!, difficulty: ["Старт", "Легко", "Средне", "Средне", "Финал"][index]!,
+  mission_steps: ["Посмотреть вводное видео", "Пройти материал по порядку", "Использовать промпты миссии", "Собрать результат и отправить практику"],
+  assignment_criteria: ["Результат открывается и работает", "Добавлено краткое описание", "Ссылка или файл готовы к проверке"],
+  video_type: null, video_url: null, unlock_rule: seed[5], assignment_required: true,
   is_published: true, assignment_description: assignmentDescriptions[index]!,
 })) satisfies Array<Lesson & { assignment_description: string }>;
 
@@ -75,7 +78,7 @@ export const devBlocks: LessonBlock[] = devLessons.flatMap((lesson, index) => {
     { id: `${lesson.id}-heading`, lesson_id: lesson.id, block_type: "heading", block_order: 1, content: { text: copy[0] }, settings: {} },
     { id: `${lesson.id}-paragraph`, lesson_id: lesson.id, block_type: "paragraph", block_order: 2, content: { text: copy[1] }, settings: {} },
     { id: `${lesson.id}-checklist`, lesson_id: lesson.id, block_type: "checklist", block_order: 3, content: { title: "Проверка результата", items: ["Основной шаг выполнен", "Результат проверен на телефоне", "Ссылка или файл готовы к отправке"] }, settings: {} },
-    { id: `${lesson.id}-prompt`, lesson_id: lesson.id, block_type: "prompt", block_order: 4, content: { title: copy[2], description: "Готовый копируемый промпт", text: copy[3] }, settings: {} },
+    { id: `${lesson.id}-prompt`, lesson_id: lesson.id, block_type: "prompt", block_order: 4, content: { title: copy[2], description: "Готовый копируемый промпт", tool: "ChatGPT", text: copy[3] }, settings: { preview_enabled: true, preview_lines: 6 } },
   ] as LessonBlock[];
 });
 
@@ -107,5 +110,5 @@ export function devDashboard(profile: Profile = devProfiles.student): CourseDash
 
 export function devSession(role: "student" | "admin" | "no_access"): SessionUser {
   const profile = devProfiles[role];
-  return { profileId: profile.id, telegramUserId: String(profile.telegram_user_id), role: profile.role, firstName: profile.first_name, username: profile.username, previewAsStudent: false };
+  return { profileId: profile.id, telegramUserId: String(profile.telegram_user_id), role: profile.role, firstName: profile.first_name, username: profile.username, previewAsStudent: false, studentMode: null };
 }

@@ -1,4 +1,5 @@
 export type Role = "student" | "admin" | "mentor";
+export type StudentMode = "preview" | "learning";
 export type AccessStatus = "active" | "completed" | "no_access" | "revoked" | "blocked";
 export type UnlockRule = "after_submission" | "after_approval" | "manual" | "none";
 export type SubmissionStatus =
@@ -25,6 +26,8 @@ export interface SessionUser {
   username: string | null;
   /** UI-only student view for a real administrator. Never changes the stored role. */
   previewAsStudent?: boolean;
+  /** Separates read-only preview from a real, persisted admin enrollment. */
+  studentMode?: StudentMode | null;
   /** True only for the first authenticated session after an atomic Telegram registration. */
   isNewUser?: boolean;
 }
@@ -61,6 +64,10 @@ export interface Lesson {
   short_description: string;
   lesson_order: number;
   expected_result: string;
+  duration_minutes: number;
+  difficulty: string;
+  mission_steps: string[];
+  assignment_criteria: string[];
   video_type: "youtube" | "vimeo" | "mp4" | "external" | null;
   video_url: string | null;
   unlock_rule: UnlockRule;
@@ -81,6 +88,7 @@ export interface LessonBlock {
     | "image"
     | "video"
     | "file"
+    | "link"
     | "divider";
   content: Record<string, unknown>;
   block_order: number;

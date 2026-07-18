@@ -31,9 +31,11 @@ describe("production security boundaries", () => {
     expect(packageJson).not.toContain('"postinstall":');
   });
 
-  it("returns from preview by disabling the preview claim", () => {
-    expect(read("components/student-preview-bar.tsx")).toContain("JSON.stringify({ enabled: false })");
-    expect(read("components/admin/admin-nav.tsx")).toContain("JSON.stringify({ enabled: true })");
+  it("uses the explicit admin, preview and learning mode boundary", () => {
+    expect(read("components/student-preview-bar.tsx")).toContain('JSON.stringify({ mode: "admin" })');
+    expect(read("components/admin/admin-student-modes.tsx")).toContain('id: "preview" as const');
+    expect(read("components/admin/admin-student-modes.tsx")).toContain('id: "learning" as const');
+    expect(read("app/api/auth/student-mode/route.ts")).toContain('z.enum(["admin", "preview", "learning"])');
   });
 
   it("keeps RLS enabled after the Telegram registration migration", () => {

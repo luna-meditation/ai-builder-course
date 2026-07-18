@@ -8,6 +8,9 @@ import { getAdminClient } from "@/lib/supabase/admin";
 const schema = z.object({
   title: z.string().trim().min(3).max(180).optional(), shortDescription: z.string().trim().max(1_000).optional(),
   expectedResult: z.string().trim().max(2_000).optional(), assignmentDescription: z.string().trim().max(4_000).optional(),
+  durationMinutes: z.number().int().min(1).max(600).optional(), difficulty: z.string().trim().min(1).max(40).optional(),
+  missionSteps: z.array(z.string().trim().min(1).max(500)).max(20).optional(),
+  assignmentCriteria: z.array(z.string().trim().min(1).max(500)).max(20).optional(),
   videoType: z.enum(["youtube", "vimeo", "mp4", "external"]).nullable().optional(),
   videoUrl: z.union([z.url(), z.literal("")]).nullable().optional(), unlockRule: z.enum(["after_submission", "after_approval", "manual", "none"]).optional(),
   assignmentRequired: z.boolean().optional(), isPublished: z.boolean().optional(), lessonOrder: z.number().int().positive().optional(),
@@ -22,7 +25,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ lesso
     z.uuid().parse(lessonId);
     const input = schema.parse(await request.json());
     const changes: Record<string, unknown> = {};
-    const mapping: Record<string, string> = { shortDescription: "short_description", expectedResult: "expected_result", assignmentDescription: "assignment_description", videoType: "video_type", videoUrl: "video_url", unlockRule: "unlock_rule", assignmentRequired: "assignment_required", isPublished: "is_published", lessonOrder: "lesson_order" };
+    const mapping: Record<string, string> = { shortDescription: "short_description", expectedResult: "expected_result", assignmentDescription: "assignment_description", durationMinutes: "duration_minutes", difficulty: "difficulty", missionSteps: "mission_steps", assignmentCriteria: "assignment_criteria", videoType: "video_type", videoUrl: "video_url", unlockRule: "unlock_rule", assignmentRequired: "assignment_required", isPublished: "is_published", lessonOrder: "lesson_order" };
     for (const [key, value] of Object.entries(input)) changes[mapping[key] ?? key] = key === "videoUrl" && value === "" ? null : value;
     const { data, error } = await getAdminClient().from("lessons").update(changes).eq("id", lessonId).select("*").single();
     if (error) throw new Error("Не удалось сохранить урок");

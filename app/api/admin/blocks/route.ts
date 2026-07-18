@@ -5,7 +5,7 @@ import { requireApiSession } from "@/lib/auth/session";
 import { getActiveProfile } from "@/lib/data";
 import { getAdminClient } from "@/lib/supabase/admin";
 
-const blockType = z.enum(["heading", "paragraph", "callout", "checklist", "prompt", "image", "video", "file", "divider"]);
+const blockType = z.enum(["heading", "paragraph", "callout", "checklist", "prompt", "image", "video", "file", "link", "divider"]);
 const schema = z.object({ lessonId: z.uuid(), blockType, blockOrder: z.number().int().nonnegative(), content: z.record(z.string(), z.unknown()), settings: z.record(z.string(), z.unknown()).default({}) });
 
 export async function POST(request: Request) {

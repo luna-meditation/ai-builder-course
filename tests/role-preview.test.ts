@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { canAccessAdminSurface, canEnterStudentPreview, canMutateWhilePreviewing, isBootstrapAdminTelegramId } from "@/lib/auth/access";
+import { canAccessAdminSurface, canEnterStudentPreview, canMutateWhilePreviewing, getStudentMode, isAdminLearningAsStudent, isBootstrapAdminTelegramId, isReadOnlyStudentPreview } from "@/lib/auth/access";
 import type { SessionUser } from "@/lib/types";
 
-function session(role: SessionUser["role"], previewAsStudent = false): SessionUser {
+function session(role: SessionUser["role"], previewAsStudent = false, studentMode: SessionUser["studentMode"] = null): SessionUser {
   return {
     profileId: "c1111111-1111-4111-8111-111111111111",
     telegramUserId: "100000001",
@@ -10,6 +10,7 @@ function session(role: SessionUser["role"], previewAsStudent = false): SessionUs
     username: null,
     role,
     previewAsStudent,
+    studentMode,
   };
 }
 
@@ -42,5 +43,21 @@ describe("admin student preview authorization", () => {
     expect(preview.role).toBe("admin");
     expect(preview.telegramUserId).toBe(admin.telegramUserId);
     expect(canAccessAdminSurface(returned)).toBe(true);
+  });
+
+  it("keeps learning mode interactive while hiding the admin surface", () => {
+    const learning = session("admin", false, "learning");
+    expect(getStudentMode(learning)).toBe("learning");
+    expect(isAdminLearningAsStudent(learning)).toBe(true);
+    expect(isReadOnlyStudentPreview(learning)).toBe(false);
+    expect(canMutateWhilePreviewing(learning)).toBe(true);
+    expect(canAccessAdminSurface(learning)).toBe(false);
+  });
+
+  it("maps the legacy preview claim without changing the real role", () => {
+    const legacy = session("admin", true);
+    expect(getStudentMode(legacy)).toBe("preview");
+    expect(isReadOnlyStudentPreview(legacy)).toBe(true);
+    expect(legacy.role).toBe("admin");
   });
 });

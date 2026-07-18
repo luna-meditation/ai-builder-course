@@ -58,6 +58,8 @@ textarea { max-width: 100%; resize: vertical; }
 .student-shell { width: min(100% - 28px, 820px); margin-inline: auto; }
 .safe-top { padding-top: max(18px, env(safe-area-inset-top)); }
 .safe-bottom { padding-bottom: max(22px, env(safe-area-inset-bottom)); }
+.student-bottom-space { padding-bottom: calc(8.5rem + env(safe-area-inset-bottom)); }
+.lesson-bottom-space { padding-bottom: calc(4rem + env(safe-area-inset-bottom)); }
 .glass {
   background: color-mix(in srgb, var(--surface) 84%, transparent);
   border: 1px solid var(--border);
@@ -136,6 +138,10 @@ textarea { max-width: 100%; resize: vertical; }
   .premium-panel { border-radius: 26px; }
   .interactive-card:hover { transform: none; }
   .interactive-card:active { transform: scale(.985); }
+}
+
+@media (min-width: 768px) {
+  .student-bottom-space { padding-bottom: 4rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {

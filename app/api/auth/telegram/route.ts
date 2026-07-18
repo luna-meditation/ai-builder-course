@@ -38,6 +38,7 @@ export async function POST(request: NextRequest) {
       firstName: profile.first_name,
       role: profile.role,
       previewAsStudent: false,
+      studentMode: null,
       isNewUser: profile.is_new,
     });
     invalidateStudentData(profile.id);
