@@ -7,29 +7,42 @@ async function track(lessonId: string, title: string) {
   await fetch("/api/analytics", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ event: "prompt_copied", properties: { lessonId, title } }) }).catch(() => undefined);
 }
 
-export async function copyTextWithFallback(value: string) {
-  try {
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(value);
-      return;
-    }
-  } catch {
-    // Telegram iOS WebView may expose Clipboard API but reject the call.
-  }
-
+function copyWithSelection(value: string) {
   const textarea = document.createElement("textarea");
   textarea.value = value;
   textarea.readOnly = true;
+  textarea.setAttribute("aria-hidden", "true");
   textarea.style.position = "fixed";
   textarea.style.inset = "0 auto auto -9999px";
   textarea.style.fontSize = "16px";
+  textarea.style.opacity = "0";
   document.body.appendChild(textarea);
-  textarea.focus();
+  textarea.focus({ preventScroll: true });
   textarea.select();
   textarea.setSelectionRange(0, value.length);
   const copied = document.execCommand("copy");
   textarea.remove();
-  if (!copied) throw new Error("Не удалось скопировать");
+  return copied;
+}
+
+export async function copyTextWithFallback(value: string) {
+  // Keep the fallback synchronous while the tap still counts as a user gesture.
+  // Telegram WebView can expose Clipboard API but leave writeText pending forever.
+  if (window.Telegram?.WebApp.initData && copyWithSelection(value)) return;
+
+  try {
+    if (navigator.clipboard?.writeText) {
+      await Promise.race([
+        navigator.clipboard.writeText(value),
+        new Promise<never>((_, reject) => window.setTimeout(() => reject(new Error("Clipboard timeout")), 800)),
+      ]);
+      return;
+    }
+  } catch {
+    // Telegram and iOS WebViews can reject or stall the modern Clipboard API.
+  }
+
+  if (!copyWithSelection(value)) throw new Error("Не удалось скопировать");
 }
 
 export function PromptCard({ lessonId, title, description, tool, text, previewEnabled = true, previewLines = 6 }: { lessonId: string; title: string; description?: string; tool?: string; text: string; previewEnabled?: boolean; previewLines?: number }) {

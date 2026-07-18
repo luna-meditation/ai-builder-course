@@ -57,6 +57,9 @@ describe("final product experience contracts", () => {
     const prompts = read("components/prompt-card.tsx");
     const blocks = read("components/lesson-blocks.tsx");
     expect(prompts).toContain('document.execCommand("copy")');
+    expect(prompts).toContain("window.Telegram?.WebApp.initData");
+    expect(prompts).toContain("Promise.race");
+    expect(prompts).toContain("Clipboard timeout");
     expect(prompts).toContain("Math.min(8, Math.max(4, previewLines))");
     expect(prompts).toContain("Скопировать все промпты");
     expect(blocks).toContain('block.block_type !== "prompt"');
