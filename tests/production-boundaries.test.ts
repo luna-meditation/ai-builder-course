@@ -35,4 +35,12 @@ describe("production security boundaries", () => {
     expect(read("components/student-preview-bar.tsx")).toContain("JSON.stringify({ enabled: false })");
     expect(read("components/admin/admin-nav.tsx")).toContain("JSON.stringify({ enabled: true })");
   });
+
+  it("keeps RLS enabled after the Telegram registration migration", () => {
+    const rls = read("supabase/migrations/202607170002_rls_and_storage.sql");
+    for (const table of ["profiles", "enrollments", "lesson_progress", "submissions", "notifications_log", "audit_log"]) {
+      expect(rls).toContain(`alter table public.${table} enable row level security`);
+    }
+    expect(read("supabase/migrations/202607170003_telegram_profile_bootstrap.sql")).not.toContain("disable row level security");
+  });
 });

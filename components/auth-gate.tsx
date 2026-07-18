@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { ArrowRight, Bot, CheckCircle2, Gamepad2, Globe2, ShieldCheck, Sparkles } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { AlertTriangle, ArrowRight, Bot, CheckCircle2, Gamepad2, Globe2, RefreshCw, ShieldCheck, Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/ui/logo";
 
@@ -11,34 +10,56 @@ export function AuthGate({ devMode }: { devMode: boolean }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [telegramAttempted, setTelegramAttempted] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const attempted = useRef(false);
+
+  const authenticateTelegram = useCallback(async () => {
+    setAuthError(null);
+    let webApp = window.Telegram?.WebApp;
+    if (!webApp) {
+      await new Promise((resolve) => window.setTimeout(resolve, 80));
+      webApp = window.Telegram?.WebApp;
+    }
+    webApp?.ready(); webApp?.expand();
+    if (!webApp?.initData) {
+      setTelegramAttempted(true);
+      return;
+    }
+
+    webApp.setHeaderColor?.("#090a0e"); webApp.setBackgroundColor?.("#090a0e");
+    setLoading(true);
+    try {
+      const response = await fetch("/api/auth/telegram", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ initData: webApp.initData }),
+        cache: "no-store",
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error);
+      router.replace(result.destination ?? (result.role === "admin" ? "/admin" : "/course"));
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : "Не удалось войти");
+      setLoading(false);
+      setTelegramAttempted(true);
+    }
+  }, [router]);
 
   useEffect(() => {
-    const timer = window.setTimeout(async () => {
-      const webApp = window.Telegram?.WebApp;
-      webApp?.ready(); webApp?.expand();
-      if (webApp?.initData) {
-        webApp.setHeaderColor?.("#090a0e"); webApp.setBackgroundColor?.("#090a0e");
-        setLoading(true);
-        try {
-          const response = await fetch("/api/auth/telegram", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ initData: webApp.initData }) });
-          const result = await response.json();
-          if (!response.ok) throw new Error(result.error);
-          router.refresh();
-        } catch (error) { toast.error(error instanceof Error ? error.message : "Не удалось войти"); setLoading(false); }
-      }
-      setTelegramAttempted(true);
-    }, 200);
-    return () => window.clearTimeout(timer);
-  }, [router]);
+    if (attempted.current) return;
+    attempted.current = true;
+    void authenticateTelegram();
+  }, [authenticateTelegram]);
 
   async function devLogin(role: "student" | "admin" | "no_access") {
     setLoading(true);
+    setAuthError(null);
     try {
       const response = await fetch("/api/auth/dev", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ role }) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error);
-      router.refresh();
-    } catch (error) { toast.error(error instanceof Error ? error.message : "Не удалось войти"); setLoading(false); }
+      router.replace(role === "admin" ? "/admin" : "/course");
+    } catch (error) { setAuthError(error instanceof Error ? error.message : "Не удалось войти"); setLoading(false); }
   }
 
   return <main className="relative min-h-screen overflow-hidden">
@@ -58,7 +79,7 @@ export function AuthGate({ devMode }: { devMode: boolean }) {
           </div>
 
           <div className="animate-in animate-in-delay mt-9 max-w-xl">
-            {loading ? <Button loading className="w-full sm:w-auto">Открываем курс</Button> : telegramAttempted && !devMode ? <div><div className="premium-panel max-w-lg p-5"><p className="font-semibold">Открой курс внутри Telegram</p><p className="mt-2 text-sm leading-6 text-[var(--muted)]">Вход произойдёт автоматически через твой Telegram-профиль.</p></div></div> : null}
+            {authError ? <div className="premium-panel max-w-lg p-5"><div className="flex items-start gap-3"><AlertTriangle className="mt-0.5 size-5 shrink-0 text-[var(--warning)]" /><div><p className="font-semibold">Не удалось открыть курс</p><p className="mt-2 text-sm leading-6 text-[var(--muted)]">{authError}</p></div></div><Button variant="secondary" onClick={() => void authenticateTelegram()} className="mt-4"><RefreshCw className="size-4" /> Повторить</Button></div> : loading ? <Button loading className="w-full sm:w-auto">Открываем курс</Button> : telegramAttempted && !devMode ? <div><div className="premium-panel max-w-lg p-5"><p className="font-semibold">Открой курс внутри Telegram</p><p className="mt-2 text-sm leading-6 text-[var(--muted)]">Вход произойдёт автоматически через твой Telegram-профиль.</p></div></div> : null}
             {devMode && <div className="premium-panel p-4 sm:p-5"><Button onClick={() => devLogin("student")} disabled={loading} className="group w-full text-base sm:min-h-14"><Sparkles className="size-4" /> Начать создавать <ArrowRight className="size-4 transition-transform duration-300 group-hover:translate-x-1" /></Button><div className="mt-3 flex items-center justify-between gap-2 px-1"><span className="text-[10px] text-[var(--muted)]">DEV · тестовая роль</span><div className="flex gap-1"><button onClick={() => devLogin("admin")} disabled={loading} className="focus-ring rounded-lg px-2.5 py-1.5 text-[10px] font-semibold text-[var(--muted)] transition hover:bg-white/[.06] hover:text-white"><ShieldCheck className="mr-1 inline size-3" />Админ</button><button onClick={() => devLogin("no_access")} disabled={loading} className="focus-ring rounded-lg px-2.5 py-1.5 text-[10px] font-semibold text-[var(--muted)] transition hover:bg-white/[.06] hover:text-white">Без доступа</button></div></div></div>}
           </div>
         </div>

@@ -5,6 +5,7 @@ import { requireApiSession } from "@/lib/auth/session";
 import { getActiveProfile } from "@/lib/data";
 import { sendTelegramNotification } from "@/lib/notifications";
 import { getAdminClient } from "@/lib/supabase/admin";
+import { invalidateStudentData } from "@/lib/student-cache";
 
 const schema = z.object({
   userId: z.uuid(),
@@ -35,6 +36,7 @@ export async function POST(request: Request) {
         idempotencyKey: `access-granted:${enrollment.id}:${enrollment.access_granted_at}`,
       });
       invalidateAdminData();
+      invalidateStudentData(input.userId);
       return NextResponse.json({ enrollment });
     }
 
@@ -48,6 +50,7 @@ export async function POST(request: Request) {
     if (error) throw new Error("Не удалось отозвать доступ");
     await supabase.from("audit_log").insert({ actor_id: admin.id, action: "access_revoked", entity_type: "enrollment", entity_id: enrollment.id });
     invalidateAdminData();
+    invalidateStudentData(input.userId);
     return NextResponse.json({ enrollment });
   } catch (error) {
     return NextResponse.json({ error: error instanceof z.ZodError ? "Некорректные данные" : error instanceof Error ? error.message : "Ошибка" }, { status: 400 });

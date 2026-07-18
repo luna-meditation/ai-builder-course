@@ -5,17 +5,17 @@ const now = "2026-07-17T04:00:00.000Z";
 export const devProfiles = {
   student: {
     id: "c1111111-1111-4111-8111-111111111111", telegram_user_id: "100000001", username: "ai_builder_student",
-    first_name: "Алексей", last_name: "Смирнов", photo_url: null, role: "student", is_blocked: false,
+    first_name: "Алексей", last_name: "Смирнов", language_code: "ru", photo_url: null, role: "student", is_blocked: false,
     created_at: "2026-07-09T04:00:00.000Z", last_seen_at: now,
   },
   admin: {
     id: "c2222222-2222-4222-8222-222222222222", telegram_user_id: "100000002", username: "ai_builder_admin",
-    first_name: "Евгений", last_name: "Автор", photo_url: null, role: "admin", is_blocked: false,
+    first_name: "Евгений", last_name: "Автор", language_code: "ru", photo_url: null, role: "admin", is_blocked: false,
     created_at: "2026-07-01T04:00:00.000Z", last_seen_at: now,
   },
   no_access: {
     id: "c3333333-3333-4333-8333-333333333333", telegram_user_id: "100000003", username: "without_access",
-    first_name: "Мария", last_name: "Без доступа", photo_url: null, role: "student", is_blocked: false,
+    first_name: "Мария", last_name: "Без доступа", language_code: "ru", photo_url: null, role: "student", is_blocked: false,
     created_at: "2026-07-16T04:00:00.000Z", last_seen_at: now,
   },
 } satisfies Record<string, Profile>;

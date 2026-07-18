@@ -15,7 +15,7 @@ export async function PATCH(request: Request) {
     const input = schema.parse(await request.json());
     const { error } = await getAdminClient().rpc("reorder_lesson_blocks", { p_admin_id: admin.id, p_lesson_id: input.lessonId, p_block_ids: input.blockIds });
     if (error) throw new Error("Не удалось изменить порядок блоков");
-    invalidateAdminData();
+    invalidateAdminData({ catalog: true });
     return NextResponse.json({ ok: true });
   } catch (error) {
     return NextResponse.json({ error: error instanceof z.ZodError ? "Некорректный порядок" : error instanceof Error ? error.message : "Ошибка" }, { status: 400 });

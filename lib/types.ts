@@ -1,4 +1,5 @@
 export type Role = "student" | "admin" | "mentor";
+export type AccessStatus = "active" | "completed" | "no_access" | "revoked" | "blocked";
 export type UnlockRule = "after_submission" | "after_approval" | "manual" | "none";
 export type SubmissionStatus =
   | "draft"
@@ -24,6 +25,8 @@ export interface SessionUser {
   username: string | null;
   /** UI-only student view for a real administrator. Never changes the stored role. */
   previewAsStudent?: boolean;
+  /** True only for the first authenticated session after an atomic Telegram registration. */
+  isNewUser?: boolean;
 }
 
 export interface Profile {
@@ -32,6 +35,7 @@ export interface Profile {
   username: string | null;
   first_name: string;
   last_name: string | null;
+  language_code: string | null;
   photo_url: string | null;
   role: Role;
   is_blocked: boolean;

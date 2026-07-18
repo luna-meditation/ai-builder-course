@@ -27,7 +27,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ block
     };
     const { data, error } = await getAdminClient().from("lesson_blocks").update(changes).eq("id", blockId).select("*").single();
     if (error) throw new Error("Не удалось сохранить блок");
-    invalidateAdminData();
+    invalidateAdminData({ catalog: true });
     return NextResponse.json({ block: data });
   } catch (error) {
     return NextResponse.json({ error: error instanceof z.ZodError ? "Некорректный блок" : error instanceof Error ? error.message : "Ошибка" }, { status: 400 });
@@ -41,7 +41,7 @@ export async function DELETE(_: Request, context: { params: Promise<{ blockId: s
     const { blockId } = await context.params; z.uuid().parse(blockId);
     const { error } = await getAdminClient().from("lesson_blocks").delete().eq("id", blockId);
     if (error) throw new Error("Не удалось удалить блок");
-    invalidateAdminData();
+    invalidateAdminData({ catalog: true });
     return NextResponse.json({ ok: true });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Ошибка" }, { status: 400 });

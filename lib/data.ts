@@ -3,12 +3,15 @@ import "server-only";
 import { notFound } from "next/navigation";
 import { unstable_cache } from "next/cache";
 import { cache } from "react";
-import { canAccessCourse, canOpenLesson } from "@/lib/course-rules";
-import { ADMIN_DATA_TAG } from "@/lib/admin-cache";
+import { hasCourseAccess, resolveAccessStatus } from "@/lib/auth/bootstrap";
+import { canOpenLesson } from "@/lib/course-rules";
+import { ADMIN_DATA_TAG, STUDENT_CATALOG_TAG } from "@/lib/admin-cache";
 import { devBlocks, devCourse, devDashboard, devEnrollment, devLessons, devProfileForSession, devProfiles, devProgress, devSubmissions } from "@/lib/dev-fixtures";
 import { isStandaloneDevPreview } from "@/lib/env";
 import { getAdminClient } from "@/lib/supabase/admin";
+import { studentDataTag } from "@/lib/student-cache";
 import type {
+  AccessStatus,
   Course,
   CourseDashboard,
   Enrollment,
@@ -64,6 +67,96 @@ export async function getCachedAdminProfile(session: SessionUser) {
   return profile;
 }
 
+type EnrollmentWithLearning = Enrollment & {
+  lesson_progress: LessonProgress[];
+  courses: Course | null;
+};
+
+type StudentBootstrap = {
+  profile: Profile;
+  enrollment: Enrollment | null;
+  course: Course | null;
+  progress: LessonProgress[];
+  accessStatus: AccessStatus;
+};
+
+async function readStudentBootstrap(profileId: string, telegramUserId: string): Promise<StudentBootstrap> {
+  const result = await getAdminClient()
+    .from("profiles")
+    .select("*, enrollments(*, lesson_progress(*), courses(*))")
+    .eq("id", profileId)
+    .single();
+  type ProfileWithLearning = Profile & { enrollments: EnrollmentWithLearning[] };
+  const row = unwrap(result.data as ProfileWithLearning | null, result.error, "Профиль не найден");
+  if (String(row.telegram_user_id) !== telegramUserId) throw new DataError("Сессия не соответствует профилю", "FORBIDDEN");
+
+  const enrollments = [...(row.enrollments ?? [])].sort((left, right) => right.access_granted_at.localeCompare(left.access_granted_at));
+  const selected = enrollments.find((item) => item.status === "active" || item.status === "completed") ?? enrollments[0] ?? null;
+  const profile = row as Profile;
+  const accessStatus = resolveAccessStatus({ isBlocked: profile.is_blocked, enrollmentStatus: selected?.status });
+  return {
+    profile,
+    enrollment: selected,
+    course: selected?.courses ?? null,
+    progress: selected?.lesson_progress ?? [],
+    accessStatus,
+  };
+}
+
+const loadStudentBootstrap = cache(async (profileId: string, telegramUserId: string) => unstable_cache(
+  () => readStudentBootstrap(profileId, telegramUserId),
+  ["student-bootstrap-v1", profileId, telegramUserId],
+  { revalidate: 60, tags: [studentDataTag(profileId)] },
+)());
+
+type CatalogLesson = Lesson & { lesson_blocks: LessonBlock[] };
+
+async function readCourseCatalog(courseId: string) {
+  const supabase = getAdminClient();
+  const [courseResult, lessonsResult] = await Promise.all([
+    supabase.from("courses").select("*").eq("id", courseId).eq("status", "published").single(),
+    supabase.from("lessons").select("*, lesson_blocks(*)").eq("course_id", courseId).eq("is_published", true).order("lesson_order"),
+  ]);
+  const course = unwrap(courseResult.data as Course | null, courseResult.error, "Курс не найден");
+  const rawLessons = unwrap(lessonsResult.data as CatalogLesson[] | null, lessonsResult.error, "Не удалось загрузить уроки");
+  const lessons = rawLessons.map((lesson) => ({
+    ...lesson,
+    lesson_blocks: [...(lesson.lesson_blocks ?? [])].sort((left, right) => left.block_order - right.block_order),
+  }));
+  return { course, lessons };
+}
+
+function getCourseCatalog(courseId: string) {
+  return unstable_cache(
+    () => readCourseCatalog(courseId),
+    ["student-course-catalog-v1", courseId],
+    { revalidate: 60, tags: [STUDENT_CATALOG_TAG] },
+  )();
+}
+
+const readSupportUsername = unstable_cache(async () => {
+  const result = await getAdminClient().from("app_settings").select("value").eq("key", "support").maybeSingle();
+  const value = result.data?.value as { username?: string } | undefined;
+  return value?.username ?? "support";
+}, ["student-support-v1"], { revalidate: 60, tags: [STUDENT_CATALOG_TAG] });
+
+const readPublishedCourse = unstable_cache(async () => {
+  const result = await getAdminClient().from("courses").select("*").eq("status", "published").order("created_at").limit(1).single();
+  return unwrap(result.data as Course | null, result.error, "Курс не найден");
+}, ["student-published-course-v1"], { revalidate: 60, tags: [STUDENT_CATALOG_TAG] });
+
+export async function getStudentAccessStatus(session: SessionUser) {
+  if (isStandaloneDevPreview()) {
+    const profile = await getActiveProfile(session);
+    return {
+      profile,
+      accessStatus: profile.id === devProfiles.no_access.id ? "no_access" as const : "active" as const,
+    };
+  }
+  const bootstrap = await readStudentBootstrap(session.profileId, session.telegramUserId);
+  return { profile: bootstrap.profile, accessStatus: bootstrap.accessStatus };
+}
+
 const previewStatuses: LessonProgress["status"][] = ["completed", "in_progress", "locked", "locked", "locked"];
 const previewEnrollmentId = "d9999999-9999-4999-8999-999999999999";
 
@@ -106,71 +199,54 @@ function buildPreviewDashboard(profile: Profile, course: Course, lessons: Lesson
 }
 
 async function getAdminStudentPreview(session: SessionUser) {
-  const profile = await getCachedAdminProfile(session);
+  const [profile, publishedCourse] = await Promise.all([getCachedAdminProfile(session), isStandaloneDevPreview() ? Promise.resolve(devCourse) : readPublishedCourse()]);
   if (isStandaloneDevPreview()) return buildPreviewDashboard(profile, devCourse, devLessons);
-  const supabase = getAdminClient();
-  const courseResult = await supabase.from("courses").select("*").eq("status", "published").order("created_at").limit(1).single();
-  const course = unwrap(courseResult.data as Course | null, courseResult.error, "Курс не найден");
-  const lessonsResult = await supabase.from("lessons").select("*").eq("course_id", course.id).eq("is_published", true).order("lesson_order");
-  const lessons = unwrap(lessonsResult.data as Lesson[] | null, lessonsResult.error, "Не удалось загрузить уроки");
-  return buildPreviewDashboard(profile, course, lessons);
+  const catalog = await getCourseCatalog(publishedCourse.id);
+  const lessons = catalog.lessons.map((lesson) => {
+    const { lesson_blocks: blocks, ...lessonData } = lesson;
+    void blocks;
+    return lessonData;
+  });
+  return buildPreviewDashboard(profile, catalog.course, lessons);
 }
 
 export async function getCourseDashboard(session: SessionUser): Promise<
-  { access: true; dashboard: CourseDashboard } | { access: false; profile: Profile; supportUsername: string }
+  { access: true; dashboard: CourseDashboard } | { access: false; profile: Profile; supportUsername: string; accessStatus: AccessStatus }
 > {
   if (session.role === "admin" && session.previewAsStudent) {
     return { access: true, dashboard: await getAdminStudentPreview(session) };
   }
   if (isStandaloneDevPreview()) {
     const profile = await getActiveProfile(session);
-    if (profile.id === devProfiles.no_access.id) return { access: false, profile, supportUsername: "ai_builder_support" };
+    if (profile.id === devProfiles.no_access.id) return { access: false, profile, supportUsername: "ai_builder_support", accessStatus: "no_access" };
     return { access: true, dashboard: devDashboard(profile) };
   }
-  const supabase = getAdminClient();
-  const profile = await getActiveProfile(session);
-  const enrollmentResult = await supabase
-    .from("enrollments")
-    .select("*")
-    .eq("user_id", profile.id)
-    .in("status", ["active", "completed"])
-    .order("access_granted_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (!enrollmentResult.data) {
-    const settingsResult = await supabase.from("app_settings").select("value").eq("key", "support").maybeSingle();
-    const supportValue = settingsResult.data?.value as { username?: string } | undefined;
-    return { access: false, profile, supportUsername: supportValue?.username ?? "support" };
+  const bootstrap = await loadStudentBootstrap(session.profileId, session.telegramUserId);
+  if (!hasCourseAccess(bootstrap.accessStatus) || !bootstrap.enrollment) {
+    return {
+      access: false,
+      profile: bootstrap.profile,
+      supportUsername: await readSupportUsername(),
+      accessStatus: bootstrap.accessStatus,
+    };
   }
 
-  const enrollment = enrollmentResult.data as Enrollment;
-  if (!canAccessCourse({ hasEnrollment: true, enrollmentStatus: enrollment.status, isBlocked: profile.is_blocked })) {
-    const settingsResult = await supabase.from("app_settings").select("value").eq("key", "support").maybeSingle();
-    const supportValue = settingsResult.data?.value as { username?: string } | undefined;
-    return { access: false, profile, supportUsername: supportValue?.username ?? "support" };
-  }
-
-  const [courseResult, lessonsResult, progressResult] = await Promise.all([
-    supabase.from("courses").select("*").eq("id", enrollment.course_id).single(),
-    supabase.from("lessons").select("*").eq("course_id", enrollment.course_id).eq("is_published", true).order("lesson_order"),
-    supabase.from("lesson_progress").select("*").eq("enrollment_id", enrollment.id),
-  ]);
-
-  const course = unwrap(courseResult.data as Course | null, courseResult.error, "Курс не найден");
-  const lessons = unwrap(lessonsResult.data as Lesson[] | null, lessonsResult.error, "Не удалось загрузить уроки");
-  const progress = unwrap(progressResult.data as LessonProgress[] | null, progressResult.error, "Не удалось загрузить прогресс");
-  const progressMap = new Map(progress.map((item) => [item.lesson_id, item]));
+  const { course, lessons } = await getCourseCatalog(bootstrap.enrollment.course_id);
+  const progressMap = new Map(bootstrap.progress.map((item) => [item.lesson_id, item]));
   const withProgress = lessons.map((lesson) => ({ lesson, progress: progressMap.get(lesson.id) ?? null }));
   const completedCount = withProgress.filter((item) => item.progress?.status === "completed").length;
 
   return {
     access: true,
     dashboard: {
-      profile,
+      profile: bootstrap.profile,
       course,
-      enrollment,
-      lessons: withProgress.map(({ lesson, progress: lessonProgress }) => ({ ...lesson, progress: lessonProgress })),
+      enrollment: bootstrap.enrollment,
+      lessons: withProgress.map(({ lesson, progress: lessonProgress }) => {
+        const { lesson_blocks: blocks, ...lessonData } = lesson;
+        void blocks;
+        return { ...lessonData, progress: lessonProgress };
+      }),
       percent: lessons.length ? Math.round((completedCount / lessons.length) * 100) : 0,
       completedCount,
     },
@@ -193,7 +269,7 @@ export async function getLessonData(session: SessionUser, courseSlug: string, le
     if (!lesson) notFound();
     const blocks = isStandaloneDevPreview()
       ? devBlocks.filter((block) => block.lesson_id === lesson.id)
-      : ((await getAdminClient().from("lesson_blocks").select("*").eq("lesson_id", lesson.id).order("block_order")).data ?? []) as LessonBlock[];
+      : (await getCourseCatalog(dashboard.course.id)).lessons.find((item) => item.id === lesson.id)?.lesson_blocks ?? [];
     return {
       profile: dashboard.profile,
       course: dashboard.course,
@@ -202,7 +278,8 @@ export async function getLessonData(session: SessionUser, courseSlug: string, le
       progress: lesson.progress!,
       blocks,
       submissions: [] as Submission[],
-      allLessons: dashboard.lessons.map(({ id, slug, title, lesson_order }) => ({ id, slug, title, lesson_order })),
+      allLessons: dashboard.lessons.map(({ id, slug, title, lesson_order, progress }) => ({ id, slug, title, lesson_order, status: progress?.status ?? "locked" })),
+      shouldMarkStarted: false,
     };
   }
   if (isStandaloneDevPreview()) {
@@ -214,103 +291,72 @@ export async function getLessonData(session: SessionUser, courseSlug: string, le
       profile, course: devCourse, enrollment: devEnrollment, lesson, progress,
       blocks: devBlocks.filter((block) => block.lesson_id === lesson.id),
       submissions: devSubmissions.filter((submission) => submission.lesson_id === lesson.id),
-      allLessons: devLessons.map(({ id, slug, title, lesson_order }) => ({ id, slug, title, lesson_order })),
+      allLessons: devLessons.map(({ id, slug, title, lesson_order }) => ({ id, slug, title, lesson_order, status: devProgress.find((item) => item.lesson_id === id)?.status ?? "locked" })),
+      shouldMarkStarted: progress.status === "available",
     };
   }
   const supabase = getAdminClient();
-  const profile = await getActiveProfile(session);
-  const courseResult = await supabase.from("courses").select("*").eq("slug", courseSlug).eq("status", "published").single();
-  if (!courseResult.data) notFound();
-  const course = courseResult.data as Course;
-
-  const enrollmentResult = await supabase
-    .from("enrollments")
-    .select("*")
-    .eq("user_id", profile.id)
-    .eq("course_id", course.id)
-    .in("status", ["active", "completed"])
-    .maybeSingle();
-  if (!enrollmentResult.data) notFound();
-  const enrollment = enrollmentResult.data as Enrollment;
-
-  const lessonResult = await supabase
-    .from("lessons")
-    .select("*")
-    .eq("course_id", course.id)
-    .eq("slug", lessonSlug)
-    .eq("is_published", true)
-    .single();
-  if (!lessonResult.data) notFound();
-  const lesson = lessonResult.data as Lesson & { assignment_description: string };
-
-  const progressResult = await supabase
-    .from("lesson_progress")
-    .select("*")
-    .eq("enrollment_id", enrollment.id)
-    .eq("lesson_id", lesson.id)
-    .maybeSingle();
-  const progress = progressResult.data as LessonProgress | null;
+  const bootstrap = await loadStudentBootstrap(session.profileId, session.telegramUserId);
+  if (!hasCourseAccess(bootstrap.accessStatus) || !bootstrap.enrollment) notFound();
+  const catalog = await getCourseCatalog(bootstrap.enrollment.course_id);
+  if (catalog.course.slug !== courseSlug) notFound();
+  const catalogLesson = catalog.lessons.find((item) => item.slug === lessonSlug);
+  if (!catalogLesson) notFound();
+  const { lesson_blocks: blocks, ...lesson } = catalogLesson;
+  const progressMap = new Map(bootstrap.progress.map((item) => [item.lesson_id, item]));
+  const storedProgress = progressMap.get(lesson.id) ?? null;
   if (!canOpenLesson({
-    isBlocked: profile.is_blocked,
-    hasActiveEnrollment: enrollment.status === "active" || enrollment.status === "completed",
+    isBlocked: bootstrap.profile.is_blocked,
+    hasActiveEnrollment: hasCourseAccess(bootstrap.accessStatus),
     isPublished: lesson.is_published,
-    progressStatus: progress?.status ?? null,
+    progressStatus: storedProgress?.status ?? null,
   })) notFound();
 
-  if (progress?.status === "available") {
-    await supabase
-      .from("lesson_progress")
-      .update({ status: "in_progress", started_at: new Date().toISOString() })
-      .eq("id", progress.id);
-    progress.status = "in_progress";
-  }
+  const progress = storedProgress?.status === "available"
+    ? { ...storedProgress, status: "in_progress" as const, started_at: storedProgress.started_at ?? new Date().toISOString() }
+    : storedProgress;
+  if (!progress) notFound();
+  const submissionsResult = await supabase
+    .from("submissions")
+    .select("*, submission_files(*), submission_comments(*)")
+    .eq("user_id", bootstrap.profile.id)
+    .eq("lesson_id", lesson.id)
+    .order("attempt_number", { ascending: false });
 
-  const [blocksResult, submissionsResult, allLessonsResult] = await Promise.all([
-    supabase.from("lesson_blocks").select("*").eq("lesson_id", lesson.id).order("block_order"),
-    supabase
-      .from("submissions")
-      .select("*, submission_files(*), submission_comments(*)")
-      .eq("user_id", profile.id)
-      .eq("lesson_id", lesson.id)
-      .order("attempt_number", { ascending: false }),
-    supabase.from("lessons").select("id,slug,title,lesson_order").eq("course_id", course.id).eq("is_published", true).order("lesson_order"),
-  ]);
-
-  const blocks = unwrap(blocksResult.data as LessonBlock[] | null, blocksResult.error, "Не удалось загрузить материалы");
   const submissions = unwrap(submissionsResult.data as Submission[] | null, submissionsResult.error, "Не удалось загрузить задание");
-  const submissionsWithUrls = await Promise.all(
-    submissions.map(async (submission) => ({
+  const signedFiles = await addSignedUrls(submissions.flatMap((submission) => submission.submission_files ?? []));
+  const signedById = new Map(signedFiles.map((file) => [file.id, file]));
+  const submissionsWithUrls = submissions.map((submission) => ({
       ...submission,
-      submission_files: await addSignedUrls(submission.submission_files ?? []),
+      submission_files: (submission.submission_files ?? []).map((file) => signedById.get(file.id) ?? file),
       submission_comments: (submission.submission_comments ?? []).filter((comment) => comment.is_visible_to_student),
-    })),
-  );
+    }));
 
   return {
-    profile,
-    course,
-    enrollment,
+    profile: bootstrap.profile,
+    course: catalog.course,
+    enrollment: bootstrap.enrollment,
     lesson,
-    progress: progress!,
+    progress,
     blocks,
     submissions: submissionsWithUrls,
-    allLessons: (allLessonsResult.data ?? []) as Array<Pick<Lesson, "id" | "slug" | "title" | "lesson_order">>,
+    allLessons: catalog.lessons.map(({ id, slug, title, lesson_order }) => ({
+      id,
+      slug,
+      title,
+      lesson_order,
+      status: progressMap.get(id)?.status ?? "locked",
+    })),
+    shouldMarkStarted: storedProgress?.status === "available",
   };
 }
 
 export async function getProfileData(session: SessionUser) {
   if (isStandaloneDevPreview()) {
     const result = await getCourseDashboard(session);
-    return result.access ? { ...result, submissionCount: devSubmissions.length } : { ...result, submissionCount: 0 };
+    return result;
   }
-  const result = await getCourseDashboard(session);
-  if (!result.access) return { ...result, submissionCount: 0 };
-  const { count } = await getAdminClient()
-    .from("submissions")
-    .select("id", { count: "exact", head: true })
-    .eq("user_id", result.dashboard.profile.id)
-    .neq("status", "draft");
-  return { ...result, submissionCount: count ?? 0 };
+  return getCourseDashboard(session);
 }
 
 export async function getCompletionData(session: SessionUser) {

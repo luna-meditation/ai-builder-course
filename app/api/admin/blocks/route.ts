@@ -16,7 +16,7 @@ export async function POST(request: Request) {
     const input = schema.parse(await request.json());
     const { data, error } = await getAdminClient().from("lesson_blocks").insert({ lesson_id: input.lessonId, block_type: input.blockType, block_order: input.blockOrder, content: input.content, settings: input.settings }).select("*").single();
     if (error) throw new Error("Не удалось добавить блок");
-    invalidateAdminData();
+    invalidateAdminData({ catalog: true });
     return NextResponse.json({ block: data }, { status: 201 });
   } catch (error) {
     return NextResponse.json({ error: error instanceof z.ZodError ? "Некорректный блок" : error instanceof Error ? error.message : "Ошибка" }, { status: 400 });

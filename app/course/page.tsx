@@ -10,6 +10,6 @@ export const metadata: Metadata = { title: "Мой курс" };
 export default async function CoursePage() {
   const session = await requireSession();
   const result = await getCourseDashboard(session);
-  if (!result.access) return <NoAccess firstName={result.profile.first_name} supportUsername={result.supportUsername} />;
+  if (!result.access) return <NoAccess firstName={result.profile.first_name} supportUsername={result.supportUsername} accessStatus={result.accessStatus} justRegistered={Boolean(session.isNewUser)} />;
   return <CourseDashboard data={result.dashboard} preview={Boolean(session.previewAsStudent)} />;
 }

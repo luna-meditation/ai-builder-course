@@ -17,6 +17,7 @@ const sessionSchema = z.object({
   firstName: z.string().min(1),
   username: z.string().nullable(),
   previewAsStudent: z.boolean().optional().default(false),
+  isNewUser: z.boolean().optional().default(false),
 });
 
 function getSecret() {

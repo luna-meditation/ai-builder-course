@@ -3,6 +3,7 @@ import { ArrowRight, Bot, Check, Flag, Gamepad2, Globe2, Lightbulb, LockKeyhole,
 import { AppHeader } from "@/components/app-header";
 import { BottomNav } from "@/components/bottom-nav";
 import { StudentPreviewBar } from "@/components/student-preview-bar";
+import { StudentRoutePrefetch } from "@/components/student-route-prefetch";
 import { ButtonLink } from "@/components/ui/button";
 import { StatusPill } from "@/components/ui/status-pill";
 import type { CourseDashboard as DashboardType, ProgressStatus } from "@/lib/types";
@@ -28,6 +29,7 @@ export function CourseDashboard({ data, preview = false }: { data: DashboardType
   const ringOffset = 100 - data.percent;
 
   return <>
+    <StudentRoutePrefetch lessonHrefs={current ? [`/course/${data.course.slug}/lesson/${current.slug}`] : []} />
     <AppHeader firstName={data.profile.first_name} lastName={data.profile.last_name} role={data.profile.role} />
     {preview && <StudentPreviewBar />}
     <main className="student-shell pb-32 pt-4 md:pb-16">
@@ -95,7 +97,7 @@ export function CourseDashboard({ data, preview = false }: { data: DashboardType
 
             return locked && !preview
               ? <div key={lesson.id} className="card p-4 opacity-65 sm:p-5">{content}</div>
-              : <Link key={lesson.id} href={`/course/${data.course.slug}/lesson/${lesson.slug}`} className={cn("card interactive-card group focus-ring block p-4 sm:p-5", locked && "opacity-65")} aria-label={locked && preview ? `${lesson.title}. Заблокировано для ученика, доступно в предпросмотре` : undefined}>{content}</Link>;
+              : <Link key={lesson.id} href={`/course/${data.course.slug}/lesson/${lesson.slug}`} prefetch={false} className={cn("card interactive-card group focus-ring block p-4 sm:p-5", locked && "opacity-65")} aria-label={locked && preview ? `${lesson.title}. Заблокировано для ученика, доступно в предпросмотре` : undefined}>{content}</Link>;
           })}
         </div>
       </section>

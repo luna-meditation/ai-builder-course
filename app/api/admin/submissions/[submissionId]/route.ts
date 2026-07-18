@@ -5,6 +5,7 @@ import { requireApiSession } from "@/lib/auth/session";
 import { getActiveProfile } from "@/lib/data";
 import { sendTelegramNotification } from "@/lib/notifications";
 import { getAdminClient } from "@/lib/supabase/admin";
+import { invalidateStudentData } from "@/lib/student-cache";
 
 const schema = z.object({
   action: z.enum(["start_review", "approve", "revision", "comment", "open_next"]),
@@ -36,6 +37,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ submi
         idempotencyKey: `manual-lesson-unlocked:${existing.enrollment_id}:${nextLessonId}`,
       });
       invalidateAdminData();
+      invalidateStudentData(existing.user_id);
       return NextResponse.json({ nextLessonId });
     }
 
@@ -81,6 +83,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ submi
       }
     }
     invalidateAdminData();
+    invalidateStudentData(submission.user_id);
     return NextResponse.json({ submission });
   } catch (error) {
     const message = error instanceof z.ZodError ? error.issues[0]?.message ?? "Некорректные данные" : error instanceof Error ? error.message : "Ошибка";

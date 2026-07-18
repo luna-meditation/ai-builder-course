@@ -5,6 +5,7 @@ import { requireApiSession } from "@/lib/auth/session";
 import { getActiveProfile } from "@/lib/data";
 import { sendTelegramNotification } from "@/lib/notifications";
 import { getAdminClient } from "@/lib/supabase/admin";
+import { invalidateStudentData } from "@/lib/student-cache";
 
 const schema = z.object({ enrollmentId: z.uuid(), lessonId: z.uuid(), action: z.enum(["unlock", "lock"]) });
 
@@ -31,6 +32,7 @@ export async function PATCH(request: Request) {
       idempotencyKey: `manual-lesson-unlocked:${input.enrollmentId}:${input.lessonId}`,
     });
     invalidateAdminData();
+    invalidateStudentData(enrollment.user_id);
     return NextResponse.json({ progress: data });
   } catch (error) {
     return NextResponse.json({ error: error instanceof z.ZodError ? "Некорректные данные" : error instanceof Error ? error.message : "Ошибка" }, { status: 400 });

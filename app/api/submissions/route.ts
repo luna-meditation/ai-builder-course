@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { z } from "zod";
 import { invalidateAdminData } from "@/lib/admin-cache";
 import { requireApiSession } from "@/lib/auth/session";
@@ -6,6 +6,7 @@ import { getActiveProfile } from "@/lib/data";
 import { sendTelegramNotification } from "@/lib/notifications";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { getAdminClient } from "@/lib/supabase/admin";
+import { invalidateStudentData } from "@/lib/student-cache";
 
 const schema = z.object({
   lessonId: z.uuid(),
@@ -39,37 +40,40 @@ export async function POST(request: Request) {
     }
 
     if (input.action === "submit") {
-      const [lessonResult, enrollmentResult] = await Promise.all([
-        supabase.from("lessons").select("unlock_rule").eq("id", input.lessonId).single(),
-        supabase.from("enrollments").select("status").eq("id", input.enrollmentId).single(),
-      ]);
-      await sendTelegramNotification({
-        userId: profile.id,
-        telegramUserId: String(profile.telegram_user_id),
-        type: "submission_sent",
-        relatedEntityId: submission.id,
-        idempotencyKey: `submission-sent:${submission.id}`,
+      after(async () => {
+        try {
+          const [lessonResult, enrollmentResult] = await Promise.all([
+            supabase.from("lessons").select("unlock_rule").eq("id", input.lessonId).single(),
+            supabase.from("enrollments").select("status").eq("id", input.enrollmentId).single(),
+          ]);
+          await sendTelegramNotification({
+            userId: profile.id,
+            telegramUserId: String(profile.telegram_user_id),
+            type: "submission_sent",
+            relatedEntityId: submission.id,
+            idempotencyKey: `submission-sent:${submission.id}`,
+          });
+          if (lessonResult.data?.unlock_rule === "after_submission") await sendTelegramNotification({
+            userId: profile.id,
+            telegramUserId: String(profile.telegram_user_id),
+            type: "lesson_unlocked",
+            relatedEntityId: input.lessonId,
+            idempotencyKey: `lesson-unlocked-by:${submission.id}`,
+          });
+          if (enrollmentResult.data?.status === "completed") await sendTelegramNotification({
+            userId: profile.id,
+            telegramUserId: String(profile.telegram_user_id),
+            type: "course_completed",
+            relatedEntityId: input.enrollmentId,
+            idempotencyKey: `course-completed:${input.enrollmentId}`,
+          });
+        } catch (notificationError) {
+          console.error("submission_notification_failed", { error: notificationError instanceof Error ? notificationError.name : "Unknown" });
+        }
       });
-      if (lessonResult.data?.unlock_rule === "after_submission") {
-        await sendTelegramNotification({
-          userId: profile.id,
-          telegramUserId: String(profile.telegram_user_id),
-          type: "lesson_unlocked",
-          relatedEntityId: input.lessonId,
-          idempotencyKey: `lesson-unlocked-by:${submission.id}`,
-        });
-      }
-      if (enrollmentResult.data?.status === "completed") {
-        await sendTelegramNotification({
-          userId: profile.id,
-          telegramUserId: String(profile.telegram_user_id),
-          type: "course_completed",
-          relatedEntityId: input.enrollmentId,
-          idempotencyKey: `course-completed:${input.enrollmentId}`,
-        });
-      }
     }
     invalidateAdminData();
+    invalidateStudentData(profile.id);
     return NextResponse.json({ submission });
   } catch (error) {
     const status = error instanceof z.ZodError ? 400 : error instanceof Error && error.name === "RateLimitError" ? 429 : 500;

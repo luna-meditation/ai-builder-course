@@ -20,7 +20,7 @@ export async function PATCH(request: Request) {
       title: input.title, description: input.description, cover_url: input.coverUrl || null, ...(input.status ? { status: input.status } : {}),
     }).eq("id", input.id).select("*").single();
     if (error) throw new Error("Не удалось сохранить курс");
-    invalidateAdminData();
+    invalidateAdminData({ catalog: true });
     return NextResponse.json({ course: data });
   } catch (error) {
     return NextResponse.json({ error: error instanceof z.ZodError ? "Проверьте поля курса" : error instanceof Error ? error.message : "Ошибка" }, { status: 400 });

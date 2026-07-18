@@ -6,6 +6,7 @@ const telegramUserSchema = z.object({
   first_name: z.string().min(1).max(128),
   last_name: z.string().max(128).optional(),
   username: z.string().max(64).optional(),
+  language_code: z.string().max(16).optional(),
   photo_url: z.url().optional(),
 });
 

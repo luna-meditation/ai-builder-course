@@ -3,6 +3,7 @@ import { AppHeader } from "@/components/app-header";
 import { BottomNav } from "@/components/bottom-nav";
 import { NoAccess } from "@/components/no-access";
 import { StudentPreviewBar } from "@/components/student-preview-bar";
+import { StudentRoutePrefetch } from "@/components/student-route-prefetch";
 import { requireSession } from "@/lib/auth/session";
 import { getProfileData } from "@/lib/data";
 import { formatDate, initials } from "@/lib/utils";
@@ -19,13 +20,14 @@ function currentLevel(percent: number) {
 export default async function ProfilePage() {
   const session = await requireSession();
   const result = await getProfileData(session);
-  if (!result.access) return <NoAccess firstName={result.profile.first_name} supportUsername={result.supportUsername} />;
+  if (!result.access) return <NoAccess firstName={result.profile.first_name} supportUsername={result.supportUsername} accessStatus={result.accessStatus} justRegistered={Boolean(session.isNewUser)} />;
   const { dashboard } = result;
   const projectsCreated = Math.min(3, dashboard.completedCount);
   const streakDays = dashboard.completedCount > 0 ? Math.min(7, dashboard.completedCount) : 0;
   const level = currentLevel(dashboard.percent);
 
   return <>
+    <StudentRoutePrefetch />
     <AppHeader firstName={dashboard.profile.first_name} lastName={dashboard.profile.last_name} role={dashboard.profile.role} />
     {session.previewAsStudent && <StudentPreviewBar />}
     <main className="student-shell pb-32 pt-4 md:pb-16">

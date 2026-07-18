@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { invalidateAdminData } from "@/lib/admin-cache";
+import { bootstrapDestination, resolveAccessStatus } from "@/lib/auth/bootstrap";
 import { createSession } from "@/lib/auth/session";
 import { isBootstrapAdminTelegramId } from "@/lib/auth/access";
+import { upsertVerifiedTelegramProfile } from "@/lib/auth/profile-bootstrap";
 import { TelegramAuthError, verifyTelegramInitData } from "@/lib/auth/telegram";
 import { getAdminTelegramIds, getServerEnv } from "@/lib/env";
 import { enforceRateLimit } from "@/lib/rate-limit";
-import { getAdminClient } from "@/lib/supabase/admin";
+import { invalidateStudentData } from "@/lib/student-cache";
 
 const schema = z.object({ initData: z.string().min(1).max(16_384) });
 
@@ -19,25 +22,14 @@ export async function POST(request: NextRequest) {
     const telegramId = String(telegramUser.id);
     const isBootstrapAdmin = isBootstrapAdminTelegramId(telegramId, getAdminTelegramIds());
 
-    const { data: profile, error } = await getAdminClient()
-      .from("profiles")
-      .upsert(
-        {
-          telegram_user_id: telegramUser.id,
-          username: telegramUser.username ?? null,
-          first_name: telegramUser.first_name,
-          last_name: telegramUser.last_name ?? null,
-          photo_url: telegramUser.photo_url ?? null,
-          ...(isBootstrapAdmin ? { role: "admin" as const } : {}),
-          last_seen_at: new Date().toISOString(),
-        },
-        { onConflict: "telegram_user_id" },
-      )
-      .select("id,telegram_user_id,username,first_name,role,is_blocked")
-      .single();
-
-    if (error || !profile) throw new Error("Не удалось сохранить профиль");
+    await enforceRateLimit(`telegram-auth-user:${telegramId}`, 20, 60);
+    const profile = await upsertVerifiedTelegramProfile(telegramUser, isBootstrapAdmin);
     if (profile.is_blocked) return NextResponse.json({ error: "Профиль заблокирован" }, { status: 403 });
+
+    const accessStatus = resolveAccessStatus({
+      isBlocked: profile.is_blocked,
+      enrollmentStatus: profile.enrollment_status,
+    });
 
     await createSession({
       profileId: profile.id,
@@ -45,8 +37,22 @@ export async function POST(request: NextRequest) {
       username: profile.username,
       firstName: profile.first_name,
       role: profile.role,
+      previewAsStudent: false,
+      isNewUser: profile.is_new,
     });
-    return NextResponse.json({ ok: true, role: profile.role });
+    invalidateStudentData(profile.id);
+    if (profile.is_new) invalidateAdminData();
+    return NextResponse.json({
+      ok: true,
+      isNew: profile.is_new,
+      role: profile.role,
+      accessStatus,
+      destination: bootstrapDestination(profile.role, accessStatus),
+      profile: {
+        firstName: profile.first_name,
+        username: profile.username,
+      },
+    });
   } catch (error) {
     const status = error instanceof TelegramAuthError || error instanceof z.ZodError ? 400 : error instanceof Error && error.name === "RateLimitError" ? 429 : 500;
     const message = status === 500 ? "Не удалось войти. Попробуйте ещё раз." : error instanceof Error ? error.message : "Ошибка авторизации";
